@@ -10,7 +10,6 @@ Generates beautiful, interactive HTML reports from your local data.
 -   **Privacy First**: Runs entirely locally. No data uploaded.
 -   **Cross-Platform**: Windows, Linux, macOS.
 -   **Fast**: Processes gigabytes of data in seconds using C#.
--   **Beautiful Reports**: Glassmorphism UI with interactive charts.
 
 ## Prerequisites
 
