@@ -50,4 +50,4 @@ The tool will generate a `voyager_report.html` file in your current directory. O
 
 ## License
 
-MIT
+GPLv3
