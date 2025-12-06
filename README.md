@@ -1,5 +1,8 @@
 # Discord Voyager CLI
-![Discord Voyager CLI](assets/demo.png)A high-performance, cross-platform tool to analyze your Discord Data Package.
+
+![Discord Voyager CLI](assets/demo.png)
+
+A high-performance, cross-platform tool to analyze your Discord Data Package.
 Generates beautiful, interactive HTML reports from your local data.
 
 ## Features
