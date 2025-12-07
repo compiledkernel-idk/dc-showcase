@@ -9,18 +9,32 @@ namespace DiscordVoyagerCLI
 {
     class Program
     {
-        private static VoyagerStats? _currentStats;
-        private static string? _lastReportPath;
+        // Main Menu Choices
+        private const string AnalyzePackageChoice = "Analyze Data Package";
+        private const string ViewStatsChoice = "View Current Statistics";
+        private const string GenerateReportChoice = "Generate HTML Report";
+        private const string HelpChoice = "Help / About";
+        private const string ExitChoice = "Exit";
+
+        // Stats Menu Choices
+        private const string GeneralOverviewChoice = "General Overview";
+        private const string TopCommunitiesChoice = "Top Communities";
+        private const string ActivityByYearChoice = "Activity by Year";
+        private const string WeeklyActivityChoice = "Weekly Activity";
+        private const string DailyActivityChoice = "Daily Activity (Hourly)";
+        private const string TopWordsChoice = "Top Words";
+        private const string BackToMainMenuChoice = "Back to Main Menu";
 
         static async Task Main(string[] args)
         {
-            // Set console title
+            VoyagerStats? currentStats = null;
+            string? lastReportPath = null;
+            
             Console.Title = "Discord Voyager";
 
-            // If args provided, try to load immediately (legacy support)
             if (args.Length > 0)
             {
-                await AnalyzeFlow(args[0]);
+                currentStats = await AnalyzeFlow(args[0]);
                 AnsiConsole.MarkupLine("Press [green]Enter[/] to enter interactive mode...");
                 Console.ReadLine();
             }
@@ -28,7 +42,7 @@ namespace DiscordVoyagerCLI
             while (true)
             {
                 AnsiConsole.Clear();
-                ShowHeader();
+                ShowHeader(currentStats);
 
                 var choice = AnsiConsole.Prompt(
                     new SelectionPrompt<string>()
@@ -36,81 +50,166 @@ namespace DiscordVoyagerCLI
                         .PageSize(10)
                         .HighlightStyle(new Style(foreground: Color.Cyan1, decoration: Decoration.Bold))
                         .AddChoices(new[] {
-                            "Analyze Data Package",
-                            "View Current Statistics",
-                            "Generate HTML Report",
-                            "Help / About",
-                            "Exit"
+                            AnalyzePackageChoice, ViewStatsChoice, GenerateReportChoice, HelpChoice, ExitChoice
                         }));
 
                 switch (choice)
                 {
-                    case "Analyze Data Package":
-                        await AnalyzeFlow();
+                    case AnalyzePackageChoice:
+                        currentStats = await AnalyzeFlow();
                         break;
-                    case "View Current Statistics":
-                        if (_currentStats == null)
+                    case ViewStatsChoice:
+                        if (currentStats == null)
                         {
                             AnsiConsole.MarkupLine("[red]No data loaded. Please analyze a package first.[/]");
                             WaitKey();
                         }
                         else
                         {
-                            ViewStatsMenu();
+                            ViewStatsMenu(currentStats);
                         }
                         break;
-                    case "Generate HTML Report":
-                         if (_currentStats == null)
+                    case GenerateReportChoice:
+                         if (currentStats == null)
                         {
                             AnsiConsole.MarkupLine("[red]No data loaded. Please analyze a package first.[/]");
                             WaitKey();
                         }
                         else 
                         {
-                            GenerateReport();
+                            lastReportPath = GenerateReport(currentStats);
+                            AnsiConsole.MarkupLine($"[green]Report saved to:[/] [link]{lastReportPath}[/]");
                             WaitKey();
                         }
                         break;
-                    case "Help / About":
+                    case HelpChoice:
                         ShowHelp();
                         break;
-                    case "Exit":
-                        AnsiConsole.MarkupLine("[grey]Closing application...[/]");
+                    case ExitChoice:
+                        AnsiConsole.MarkupLine("[bold cyan]Thanks for using Voyager! Fly safe![/]");
                         return;
                 }
             }
         }
 
-        static void ShowHeader()
+        static void ShowHeader(VoyagerStats? stats)
         {
              AnsiConsole.Write(
                 new FigletText("Voyager")
                     .Color(Color.Cyan1));
-            AnsiConsole.MarkupLine("[bold cyan]Discord Data Explorer[/] v1.1");
-            AnsiConsole.MarkupLine("[dim]License: GPL-v3[/]");
-            AnsiConsole.MarkupLine("[dim]------------------------------------------------[/]");
-            if (_currentStats != null)
+            
+            var rule = new Rule("[bold cyan]Discord Data Explorer[/] v1.2");
+            rule.Style = Style.Parse("cyan dim");
+            AnsiConsole.Write(rule);
+
+            if (stats != null)
             {
-                AnsiConsole.MarkupLine($"[green]Loaded:[/] {_currentStats.TotalMessages:N0} msgs over {_currentStats.Servers.Count} servers.");
+                var statusGrid = new Grid();
+                statusGrid.AddColumn(new GridColumn().NoWrap().PadRight(2));
+                statusGrid.AddColumn(new GridColumn().NoWrap());
+                
+                statusGrid.AddRow("[dim]Loaded Data:[/]", $"[green]{stats.TotalMessages:N0} messages[/]");
+                statusGrid.AddRow("[dim]Servers:[/]", $"[green]{stats.Servers.Count}[/]");
+                
+                AnsiConsole.Write(statusGrid);
+                var bottomRule = new Rule();
+                bottomRule.Style = Style.Parse("dim");
+                AnsiConsole.Write(bottomRule);
             }
             AnsiConsole.WriteLine();
         }
 
-        static async Task AnalyzeFlow(string? path = null)
+        static async Task<VoyagerStats?> AnalyzeFlow(string? path = null)
         {
             if (path == null)
             {
-                path = AnsiConsole.Ask<string>("Enter path to [green].zip[/] or text [green]folder[/]:");
-                path = path.Replace("\"", ""); // Handle quotes from drag-drop
+                var currentDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                if (string.IsNullOrEmpty(currentDir)) currentDir = Directory.GetCurrentDirectory();
+
+                while (true)
+                {
+                    AnsiConsole.Clear();
+                    AnsiConsole.MarkupLine($"[bold cyan]Browsing:[/] {currentDir}");
+                    
+                    var choices = new List<ItemChoice>();
+                    
+                    // Option to go up
+                    var parent = Directory.GetParent(currentDir);
+                    if (parent != null)
+                    {
+                        choices.Add(new ItemChoice { Description = "[yellow]..  (Go Up)[/]", Path = parent.FullName, IsAction = true });
+                    }
+
+                    // Option to select current folder
+                    choices.Add(new ItemChoice { Description = $"[green]>>  Select Current Folder[/]", Path = currentDir, IsSelect = true });
+
+                    // Manual entry option
+                    choices.Add(new ItemChoice { Description = "[grey]??  Enter path manually...[/]", IsManual = true });
+
+                    try
+                    {
+                        var info = new DirectoryInfo(currentDir);
+                        
+                        // Directories
+                        foreach (var dir in info.GetDirectories().OrderBy(d => d.Name))
+                        {
+                            if (!dir.Attributes.HasFlag(FileAttributes.Hidden))
+                            {
+                                choices.Add(new ItemChoice { Description = $"[blue]{dir.Name}/[/]", Path = dir.FullName, IsDir = true });
+                            }
+                        }
+
+                        // Zip Files
+                        foreach (var file in info.GetFiles("*.zip").OrderBy(f => f.Name))
+                        {
+                             choices.Add(new ItemChoice { Description = $"[cyan]{file.Name}[/]", Path = file.FullName, IsFile = true });
+                        }
+                    }
+                    catch (UnauthorizedAccessException)
+                    {
+                        AnsiConsole.MarkupLine("[red]Access Denied to this folder.[/]");
+                    }
+                    catch (Exception ex)
+                    {
+                         AnsiConsole.MarkupLine($"[red]Error: {ex.Message}[/]");
+                    }
+
+                    // Render prompt
+                    var selection = AnsiConsole.Prompt(
+                        new SelectionPrompt<ItemChoice>()
+                            .Title("Navigate to your Data Package:")
+                            .PageSize(15)
+                            .MoreChoicesText("[grey](Move up and down for more)[/]")
+                            .UseConverter(x => x.Description)
+                            .AddChoices(choices));
+
+                    if (selection.IsManual)
+                    {
+                        path = AnsiConsole.Ask<string>("Enter path to [green].zip[/] or text [green]folder[/]:");
+                        path = path.Replace("\"", "").Trim();
+                        break;
+                    }
+                    else if (selection.IsSelect || selection.IsFile)
+                    {
+                        path = selection.Path;
+                        break;
+                    }
+                    else if (selection.IsAction || selection.IsDir)
+                    {
+                        currentDir = selection.Path;
+                        // Loop again to refresh view
+                    }
+                }
             }
 
             if (!File.Exists(path) && !Directory.Exists(path))
             {
                 AnsiConsole.MarkupLine($"[red]Error:[/] Path not found: {path}");
                 WaitKey();
-                return;
+                return null;
             }
 
+            VoyagerStats? stats = null;
             try
             {
                 var sw = Stopwatch.StartNew();
@@ -127,129 +226,179 @@ namespace DiscordVoyagerCLI
                     .StartAsync(async ctx => 
                     {
                         var task = ctx.AddTask($"[green]Parsing {Path.GetFileName(path)}...[/]");
-                        _currentStats = await Parser.Process(path, task);
+                        stats = await Parser.Process(path, task);
                     });
 
                 sw.Stop();
-                if (_currentStats != null)
+                if (stats != null)
                 {
-                    AnsiConsole.MarkupLine($"[bold green]Success![/] Analyzed {_currentStats.TotalMessages:N0} messages in {sw.Elapsed.TotalSeconds:F2}s.");
+                    AnsiConsole.MarkupLine($"[bold green]Success![/] Analyzed {stats.TotalMessages:N0} messages in {sw.Elapsed.TotalSeconds:F2}s.");
                 }
                 WaitKey();
+                return stats;
             }
             catch (Exception ex)
             {
                  AnsiConsole.MarkupLine($"[red bold]Analysis Failed:[/]");
                  AnsiConsole.MarkupLine($"[red]{ex.Message}[/]");
                  WaitKey();
+                 return null;
             }
         }
 
-        static void ViewStatsMenu()
+        static void ViewStatsMenu(VoyagerStats stats)
         {
             while (true)
             {
                 AnsiConsole.Clear();
-                ShowHeader();
+                ShowHeader(stats);
                 
                 var viewChoice = AnsiConsole.Prompt(
                     new SelectionPrompt<string>()
                         .Title("[bold]Select a category to view:[/]")
                         .AddChoices(new[] {
-                            "General Overview",
-                            "Top Communities",
-                            "Activity by Year",
-                            "Weekly Activity",
-                            "Top Words",
-                            "Back to Main Menu"
+                            GeneralOverviewChoice, TopCommunitiesChoice, ActivityByYearChoice, 
+                            WeeklyActivityChoice, DailyActivityChoice, TopWordsChoice, BackToMainMenuChoice
                         }));
-                
-                if (viewChoice == "Back to Main Menu") return;
 
-                if (viewChoice == "General Overview")
+                switch (viewChoice)
                 {
-                    var table = new Table().Border(TableBorder.Rounded);
-                    table.AddColumn("Metric");
-                    table.AddColumn("Value");
-                    table.AddRow("Total Messages", $"[cyan]{_currentStats!.TotalMessages:N0}[/]");
-                    table.AddRow("Active Servers", $"[green]{_currentStats.Servers.Count:N0}[/]");
-                    table.AddRow("Voice Interactions", $"[yellow]{_currentStats.VoiceActivity:N0}[/]");
-                    AnsiConsole.Write(table);
-                    Console.WriteLine("monkey boy");
+                    case GeneralOverviewChoice:
+                        ShowGeneralOverview(stats);
+                        break;
+                    case TopCommunitiesChoice:
+                        ShowTopCommunities(stats);
+                        break;
+                    case ActivityByYearChoice:
+                        ShowActivityByYear(stats);
+                        break;
+                    case WeeklyActivityChoice:
+                        ShowWeeklyActivity(stats);
+                        break;
+                    case DailyActivityChoice:
+                        ShowDailyActivity(stats);
+                        break;
+                    case TopWordsChoice:
+                        ShowTopWords(stats);
+                        break;
+                    case BackToMainMenuChoice:
+                        return;
                 }
-                else if (viewChoice == "Top Communities")
-                {
-                    var table = new Table().Border(TableBorder.Rounded);
-                    table.AddColumn("Rank");
-                    table.AddColumn("Server Name");
-                    table.AddColumn("Messages");
-
-                    var top = _currentStats!.Servers.Values.OrderByDescending(s => s.Count).Take(10).ToList();
-                    for(int i=0; i<top.Count; i++)
-                    {
-                        table.AddRow($"#{i+1}", top[i].Name, $"[cyan]{top[i].Count:N0}[/]");
-                    }
-                    AnsiConsole.Write(table);
-                }
-                else if (viewChoice == "Activity by Year")
-                {
-                    var chart = new BarChart()
-                        .Width(60)
-                        .Label("[green]Messages per Year[/]")
-                        .CenterLabel();
-
-                    foreach(var kvp in _currentStats!.MessagesByYear.OrderBy(x => x.Key))
-                    {
-                         chart.AddItem(kvp.Key.ToString(), kvp.Value, Color.Cyan1);
-                    }
-                    AnsiConsole.Write(chart);
-                }
-                else if (viewChoice == "Weekly Activity")
-                {
-                    var chart = new BarChart()
-                        .Width(60)
-                        .Label("[green]Messages per Day[/]")
-                        .CenterLabel();
-
-                    var days = new[] { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
-                    for(int i=0; i<7; i++)
-                    {
-                        chart.AddItem(days[i], _currentStats!.MessagesByDayOfWeek[i], Color.Purple);
-                    }
-                    AnsiConsole.Write(chart);
-                }
-                else if (viewChoice == "Top Words")
-                {
-                    var table = new Table().Border(TableBorder.Rounded);
-                    table.AddColumn("Rank");
-                    table.AddColumn("Word");
-                    table.AddColumn("Frequency");
-
-                    var top = _currentStats!.WordFrequency.OrderByDescending(x => x.Value).Take(20).ToList();
-                    for(int i=0; i<top.Count; i++)
-                    {
-                        table.AddRow($"#{i+1}", top[i].Key, $"[cyan]{top[i].Value:N0}[/]");
-                    }
-                    AnsiConsole.Write(table);
-                }
-
                 WaitKey();
             }
         }
 
-        static void GenerateReport()
+        private static void ShowGeneralOverview(VoyagerStats stats)
+        {
+            var grid = new Grid();
+            grid.AddColumn();
+            grid.AddColumn();
+            grid.AddColumn();
+
+            grid.AddRow(
+                new Panel(new Align(new Markup($"[bold cyan]{stats.TotalMessages:N0}[/]"), HorizontalAlignment.Center, VerticalAlignment.Middle))
+                    .Header("Total Messages")
+                    .BorderColor(Color.Cyan1)
+                    .Expand(),
+                new Panel(new Align(new Markup($"[bold green]{stats.Servers.Count:N0}[/]"), HorizontalAlignment.Center, VerticalAlignment.Middle))
+                    .Header("Active Servers")
+                    .BorderColor(Color.Green)
+                    .Expand(),
+                new Panel(new Align(new Markup($"[bold yellow]{stats.VoiceActivity:N0}[/]"), HorizontalAlignment.Center, VerticalAlignment.Middle))
+                    .Header("Voice Interactions")
+                    .BorderColor(Color.Yellow)
+                    .Expand());
+
+            AnsiConsole.Write(grid);
+        }
+
+        private static void ShowTopCommunities(VoyagerStats stats)
+        {
+            var table = new Table().Border(TableBorder.Rounded);
+            table.AddColumn("Rank");
+            table.AddColumn("Server Name");
+            table.AddColumn("Messages");
+
+            var top = stats.Servers.Values.OrderByDescending(s => s.Count).Take(10).ToList();
+            for(int i=0; i<top.Count; i++)
+            {
+                table.AddRow($"#{i+1}", top[i].Name, $"[cyan]{top[i].Count:N0}[/]");
+            }
+            AnsiConsole.Write(table);
+        }
+
+        private static void ShowActivityByYear(VoyagerStats stats)
+        {
+            var chart = new BarChart()
+                .Width(60)
+                .Label("[green]Messages per Year[/]")
+                .CenterLabel();
+
+            foreach(var kvp in stats.MessagesByYear.OrderBy(x => x.Key))
+            {
+                    chart.AddItem(kvp.Key.ToString(), kvp.Value, Color.Cyan1);
+            }
+            AnsiConsole.Write(chart);
+        }
+
+        private static void ShowWeeklyActivity(VoyagerStats stats)
+        {
+            var chart = new BarChart()
+                .Width(60)
+                .Label("[green]Messages per Day[/]")
+                .CenterLabel();
+
+            var days = new[] { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+            for(int i=0; i<7; i++)
+            {
+                chart.AddItem(days[i], stats.MessagesByDayOfWeek[i], Color.Purple);
+            }
+            AnsiConsole.Write(chart);
+        }
+
+        private static void ShowDailyActivity(VoyagerStats stats)
+        {
+            var chart = new BarChart()
+                .Width(60)
+                .Label("[green]Activity by Hour of Day[/]")
+                .CenterLabel();
+
+            for(int i=0; i<24; i++)
+            {
+                // Use 12-hour format for labels if needed, or just 0-23
+                chart.AddItem($"{i:00}:00", stats.MessagesByHour[i], Color.Blue);
+            }
+            AnsiConsole.Write(chart);
+        }
+
+        private static void ShowTopWords(VoyagerStats stats)
+        {
+            var table = new Table().Border(TableBorder.Rounded);
+            table.AddColumn("Rank");
+            table.AddColumn("Word");
+            table.AddColumn("Frequency");
+
+            var top = stats.WordFrequency.OrderByDescending(x => x.Value).Take(20).ToList();
+            for(int i=0; i<top.Count; i++)
+            {
+                table.AddRow($"#{i+1}", top[i].Key, $"[cyan]{top[i].Value:N0}[/]");
+            }
+            AnsiConsole.Write(table);
+        }
+
+        static string GenerateReport(VoyagerStats stats)
         {
              try 
              {
-                var html = HtmlGenerator.Generate(_currentStats!);
+                var html = HtmlGenerator.Generate(stats);
                 var outputPath = Path.Combine(Directory.GetCurrentDirectory(), "voyager_report.html");
                 File.WriteAllText(outputPath, html);
-                _lastReportPath = outputPath;
-                AnsiConsole.MarkupLine($"[green]Report saved to:[/] [link]{outputPath}[/]");
+                return outputPath;
              } 
              catch (Exception ex)
              {
                  AnsiConsole.MarkupLine($"[red]Failed to generate report:[/] {ex.Message}");
+                 throw;
              }
         }
 
@@ -271,6 +420,17 @@ namespace DiscordVoyagerCLI
         {
             AnsiConsole.MarkupLine("[grey]Press any key to continue...[/]");
             Console.ReadKey(true);
+        }
+
+        private class ItemChoice
+        {
+            public required string Description { get; set; }
+            public string? Path { get; set; }
+            public bool IsDir { get; set; }
+            public bool IsFile { get; set; }
+            public bool IsAction { get; set; }
+            public bool IsSelect { get; set; }
+            public bool IsManual { get; set; }
         }
     }
 }

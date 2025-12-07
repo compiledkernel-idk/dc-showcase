@@ -3,3 +3,7 @@ bin/
 obj/
 .vscode/
 *.user
+release_artifacts/
+dist/
+DiscordVoyagerCLI/dist/
+DiscordVoyagerCLI/release_artifacts/

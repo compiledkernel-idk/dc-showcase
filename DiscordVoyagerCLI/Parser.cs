@@ -32,11 +32,11 @@ namespace DiscordVoyagerCLI
 
             if (File.Exists(inputPath) && inputPath.EndsWith(".zip"))
             {
-                await ProcessZip(inputPath, stats, progressTask);
+                await Task.Run(() => ProcessZip(inputPath, stats, progressTask));
             }
             else if (Directory.Exists(inputPath))
             {
-                ProcessDirectory(inputPath, stats, progressTask);
+                await Task.Run(() => ProcessDirectory(inputPath, stats, progressTask));
             }
             else
             {
@@ -116,7 +116,7 @@ namespace DiscordVoyagerCLI
             });
         }
 
-        private static async Task ProcessZip(string zipPath, VoyagerStats stats, ProgressTask? progressTask)
+        private static void ProcessZip(string zipPath, VoyagerStats stats, ProgressTask? progressTask)
         {
             using var archive = ZipFile.OpenRead(zipPath);
 
@@ -125,7 +125,7 @@ namespace DiscordVoyagerCLI
             {
                 using var stream = indexEntry.Open();
                 using var reader = new StreamReader(stream);
-                var json = await reader.ReadToEndAsync();
+                var json = reader.ReadToEnd();
                 try
                 {
                     stats.Channels = JsonSerializer.Deserialize<Dictionary<string, string>>(json) ?? new();
@@ -144,18 +144,31 @@ namespace DiscordVoyagerCLI
 
             if (progressTask != null) progressTask.MaxValue = messageEntries.Count;
 
-            foreach (var entry in messageEntries)
+            var lockObj = new object();
+
+            Parallel.ForEach(messageEntries, new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount }, () => new VoyagerStats(), (entry, loop, localStats) =>
             {
                 var match = Regex.Match(entry.FullName, @"c(\d+)/");
                 var channelId = match.Success ? match.Groups[1].Value : "unknown";
 
                 using var stream = entry.Open();
                 using var reader = new StreamReader(stream);
-                // Keep async for Zip stream
-                await ParseCsvAsync(reader, channelId, stats);
+                ParseCsvSync(reader, channelId, localStats);
+                
+                lock (lockObj)
+                {
+                    progressTask?.Increment(1);
+                }
 
-                progressTask?.Increment(1);
-            }
+                return localStats;
+            },
+            (localStats) =>
+            {
+                lock (lockObj)
+                {
+                    MergeStats(stats, localStats);
+                }
+            });
         }
 
         private static void ParseCsvSync(StreamReader textReader, string channelId, VoyagerStats stats)
@@ -165,19 +178,6 @@ namespace DiscordVoyagerCLI
             csv.ReadHeader();
 
             while (csv.Read())
-            {
-                ProcessRow(csv, channelId, stats);
-            }
-        }
-
-        private static async Task ParseCsvAsync(StreamReader textReader, string channelId, VoyagerStats stats)
-        {
-            using var csv = new CsvReader(textReader, CultureInfo.InvariantCulture);
-            
-            await csv.ReadAsync();
-            csv.ReadHeader();
-            
-            while (await csv.ReadAsync())
             {
                 ProcessRow(csv, channelId, stats);
             }
