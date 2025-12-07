@@ -1,28 +1,5 @@
-# System Files
-.DS_Store
-Thumbs.db
-
-# Build results
-[Bb]in/
-[Oo]bj/
-dist/
-build/
-node_modules/
-
-# Legacy/Other
-cli/
-
-# Dotnet
-*.user
-*.suo
-*.userprefs
-*.launchSettings.json
-
-# Logs
-*.log
-npm-debug.log*
-
-# IDEs
+aur/
+bin/
+obj/
 .vscode/
-.idea/
-*.swp
+*.user

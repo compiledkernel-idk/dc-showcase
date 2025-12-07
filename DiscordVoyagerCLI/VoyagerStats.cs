@@ -18,5 +18,7 @@ namespace DiscordVoyagerCLI
         public Dictionary<string, ChannelStats> Servers { get; set; } = new();
         public Dictionary<int, int> MessagesByYear { get; set; } = new();
         public int[] MessagesByHour { get; set; } = new int[24];
+        public int[] MessagesByDayOfWeek { get; set; } = new int[7];
+        public Dictionary<string, int> WordFrequency { get; set; } = new();
     }
 }
