@@ -175,6 +175,7 @@ namespace DiscordVoyagerCLI
                     table.AddRow("Active Servers", $"[green]{_currentStats.Servers.Count:N0}[/]");
                     table.AddRow("Voice Interactions", $"[yellow]{_currentStats.VoiceActivity:N0}[/]");
                     AnsiConsole.Write(table);
+                    Console.WriteLine("monkey boy");
                 }
                 else if (viewChoice == "Top Communities")
                 {
