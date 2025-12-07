@@ -35,6 +35,16 @@ cd DiscordVoyagerCLI
 dotnet publish -c Release -r linux-x64 --self-contained
 ```
 
+### Option 3: Install aur package (Arch Linux)
+
+```bash
+paru -Syu dcshowcase
+
+# or
+
+yay -Syu dcshowcase
+```
+
 ## Usage
 
 Run the tool against your Discord Data Package (`.zip` or unzipped folder):
