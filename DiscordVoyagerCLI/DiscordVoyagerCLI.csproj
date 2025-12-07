@@ -6,6 +6,9 @@
     <AssemblyName>showcase</AssemblyName>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <DebugType>embedded</DebugType>
   </PropertyGroup>
 
   <ItemGroup>

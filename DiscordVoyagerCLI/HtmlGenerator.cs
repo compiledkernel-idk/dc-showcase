@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Text.Json;
 using System.Text;
+using System.Collections.Generic;
 
 namespace DiscordVoyagerCLI
 {
@@ -22,6 +23,21 @@ namespace DiscordVoyagerCLI
             var jsonYears = JsonSerializer.Serialize(years);
             var jsonYearCounts = JsonSerializer.Serialize(yearCounts);
             var jsonHours = JsonSerializer.Serialize(stats.MessagesByHour);
+            var jsonDays = JsonSerializer.Serialize(stats.MessagesByDayOfWeek);
+            
+            // Normalize word sizes for tag cloud
+            var topWords = stats.WordFrequency.OrderByDescending(x => x.Value).Take(60).ToList();
+            var maxWordCount = topWords.Any() ? topWords.First().Value : 1;
+            
+            string GetWordSizeClass(int count)
+            {
+                var percent = (double)count / maxWordCount;
+                if (percent > 0.8) return "text-4xl text-brand-accent font-bold";
+                if (percent > 0.6) return "text-3xl text-white font-semibold";
+                if (percent > 0.4) return "text-2xl text-slate-300 font-medium";
+                if (percent > 0.2) return "text-xl text-slate-400";
+                return "text-lg text-slate-500";
+            }
 
             return $@"<!DOCTYPE html>
 <html lang=""en"">
@@ -118,6 +134,27 @@ namespace DiscordVoyagerCLI
             </div>
         </div>
     </div>
+    
+    <div class=""grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12"">
+        <div class=""glass-card"">
+            <h2 class=""text-xl font-bold text-white mb-6 flex items-center gap-2"">
+                <span class=""w-2 h-8 bg-purple-500 rounded-full""></span>
+                Weekly Habits
+            </h2>
+            <div class=""relative h-64"">
+                <canvas id=""dayChart""></canvas>
+            </div>
+        </div>
+        <div class=""glass-card"">
+            <h2 class=""text-xl font-bold text-white mb-6 flex items-center gap-2"">
+                <span class=""w-2 h-8 bg-pink-500 rounded-full""></span>
+                Most Used Words
+            </h2>
+            <div class=""flex flex-wrap gap-x-4 gap-y-2 justify-center items-center h-64 overflow-y-auto pr-2 custom-scrollbar"">
+                {string.Join("", topWords.Select(w => $"<span class='{GetWordSizeClass(w.Value)} hover:text-brand-accent transition-colors cursor-default' title='{w.Value:N0} times'>{w.Key}</span>"))}
+            </div>
+        </div>
+    </div>
 
     <div class=""glass-card"">
         <h2 class=""text-xl font-bold text-white mb-6 flex items-center gap-2"">
@@ -194,6 +231,29 @@ namespace DiscordVoyagerCLI
                 scales: {{
                     y: {{ grid: {{ display: true }}, border: {{ display: false }} }},
                     x: {{ grid: {{ display: false }}, border: {{ display: false }}, ticks: {{ maxTicksLimit: 8 }} }}
+                }}
+            }}
+        }});
+        
+        new Chart(document.getElementById('dayChart'), {{
+            type: 'bar',
+            data: {{
+                labels: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+                datasets: [{{
+                    label: 'Messages',
+                    data: {jsonDays},
+                    backgroundColor: '#A855F7',
+                    borderRadius: 6,
+                    hoverBackgroundColor: '#C084FC'
+                }}]
+            }},
+            options: {{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {{ legend: {{ display: false }} }},
+                scales: {{
+                    y: {{ grid: {{ display: true }}, border: {{ display: false }} }},
+                    x: {{ grid: {{ display: false }}, border: {{ display: false }} }}
                 }}
             }}
         }});

@@ -1,6 +1,7 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using Spectre.Console;
 
@@ -85,7 +86,7 @@ namespace DiscordVoyagerCLI
              AnsiConsole.Write(
                 new FigletText("Voyager")
                     .Color(Color.Cyan1));
-            AnsiConsole.MarkupLine("[bold cyan]Discord Data Explorer[/] v1.0");
+            AnsiConsole.MarkupLine("[bold cyan]Discord Data Explorer[/] v1.1");
             AnsiConsole.MarkupLine("[dim]License: GPL-v3[/]");
             AnsiConsole.MarkupLine("[dim]------------------------------------------------[/]");
             if (_currentStats != null)
@@ -158,6 +159,8 @@ namespace DiscordVoyagerCLI
                             "General Overview",
                             "Top Communities",
                             "Activity by Year",
+                            "Weekly Activity",
+                            "Top Words",
                             "Back to Main Menu"
                         }));
                 
@@ -200,6 +203,34 @@ namespace DiscordVoyagerCLI
                     }
                     AnsiConsole.Write(chart);
                 }
+                else if (viewChoice == "Weekly Activity")
+                {
+                    var chart = new BarChart()
+                        .Width(60)
+                        .Label("[green]Messages per Day[/]")
+                        .CenterLabel();
+
+                    var days = new[] { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+                    for(int i=0; i<7; i++)
+                    {
+                        chart.AddItem(days[i], _currentStats!.MessagesByDayOfWeek[i], Color.Purple);
+                    }
+                    AnsiConsole.Write(chart);
+                }
+                else if (viewChoice == "Top Words")
+                {
+                    var table = new Table().Border(TableBorder.Rounded);
+                    table.AddColumn("Rank");
+                    table.AddColumn("Word");
+                    table.AddColumn("Frequency");
+
+                    var top = _currentStats!.WordFrequency.OrderByDescending(x => x.Value).Take(20).ToList();
+                    for(int i=0; i<top.Count; i++)
+                    {
+                        table.AddRow($"#{i+1}", top[i].Key, $"[cyan]{top[i].Value:N0}[/]");
+                    }
+                    AnsiConsole.Write(table);
+                }
 
                 WaitKey();
             }
@@ -224,9 +255,9 @@ namespace DiscordVoyagerCLI
         static void ShowHelp()
         {
             var panel = new Panel(
-                "1. Select [bold]Analyze Data Package[/]\n" +
-                "2. Drag and drop your Discord Package (.zip) or Folder\n" +
-                "3. Wait for processing\n" +
+                "1. Select [bold]Analyze Data Package[/]\n" + 
+                "2. Drag and drop your Discord Package (.zip) or Folder\n" + 
+                "3. Wait for processing\n" + 
                 "4. Browse stats or generate the HTML report!")
                 .Header("Quick Start")
                 .BorderColor(Color.Cyan1);
