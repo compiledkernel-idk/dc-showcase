@@ -38,11 +38,12 @@ dotnet publish -c Release -r linux-x64 --self-contained
 ### Option 3: Install aur package (Arch Linux)
 
 ```bash
-paru -Syu dcshowcase
+paru -Sy dcshowcase
+```
+or using **yay**
 
-# or
-
-yay -Syu dcshowcase
+```bash
+yay -Sy dcshowcase
 ```
 
 ## Usage
